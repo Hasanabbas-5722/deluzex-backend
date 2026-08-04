@@ -9,7 +9,7 @@ client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 
 
-def init_db():
+async def init_db():
     # Validate that the MongoDB server is reachable
     client.admin.command("ping")
     return db
