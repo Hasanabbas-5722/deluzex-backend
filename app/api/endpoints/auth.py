@@ -8,7 +8,7 @@ router = APIRouter()
 @router.post("/register", response_model=schemas.StandardResponse)
 async def register_user(user_in: schemas.UserRegister):
     # Check if email exists
-    existing_user = await models.User.find_one(models.User.email == user_in.email)
+    existing_user = await models.User.find_one({"email": user_in.email})
     if existing_user:
         raise HTTPException(
             status_code=400,
@@ -59,7 +59,7 @@ async def register_user(user_in: schemas.UserRegister):
 
 @router.post("/login", response_model=schemas.StandardResponse)
 async def login_user(user_in: schemas.UserLogin):
-    user = await models.User.find_one(models.User.email == user_in.email)
+    user = await models.User.find_one({"email": user_in.email})
     
     if not user or not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")

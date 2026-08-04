@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/{session_id}")
 async def get_cart(session_id: str):
-    return await models.CartItem.find(models.CartItem.session_id == session_id).to_list()
+    return await models.CartItem.find({"session_id": session_id}).to_list()
 
 from app.schemas.cart import CartItemCreate
 from beanie import PydanticObjectId

@@ -5,7 +5,7 @@ router = APIRouter()
 
 @router.post("/subscribe")
 async def subscribe_newsletter(subscriber: models.NewsletterSubscriber):
-    existing = await models.NewsletterSubscriber.find_one(models.NewsletterSubscriber.email == subscriber.email)
+    existing = await models.NewsletterSubscriber.find_one({"email": subscriber.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already subscribed")
     await subscriber.insert()
