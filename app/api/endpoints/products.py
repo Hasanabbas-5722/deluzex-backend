@@ -1,16 +1,17 @@
 from dotenv.main import logger
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
-from beanie import PydanticObjectId
+from bson import ObjectId
 from app import models
 from app.api.deps import get_current_active_user
 from app.services.imagekit import upload_image_to_imagekit
+from app.core.database import db
 import json
 
 router = APIRouter()
 
 @router.get("")
-async def read_products(
+def read_products(
     skip: int = 0,
     limit: int = 100,
     is_featured: Optional[bool] = None,
@@ -22,21 +23,25 @@ async def read_products(
         query["is_featured"] = is_featured
 
     if is_new_arrival is not None:
-        # query["is_new_arrival"] = is_new_arrival
-
         if is_new_arrival:
-            return await models.Product.find(query).sort("-created_at").limit(3).to_list()
+            docs = list(db.products.find(query).sort("created_at", -1).limit(3))
+            return [models.Product(**doc) for doc in docs]
             
-
-    return await models.Product.find(query).skip(skip).limit(limit).to_list()
+    docs = list(db.products.find(query).skip(skip).limit(limit))
+    return [models.Product(**doc) for doc in docs]
 
     
 @router.get("/{product_id}")
-async def read_product(product_id: PydanticObjectId):
-    product = await models.Product.get(product_id)
-    if product is None:
+def read_product(product_id: str):
+    try:
+        obj_id = ObjectId(product_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid product_id format")
+
+    doc = db.products.find_one({"_id": obj_id})
+    if doc is None:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    return models.Product(**doc)
 
 @router.post("")
 async def create_product(
@@ -69,13 +74,7 @@ async def create_product(
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
         logger.info(f"Product main image URL: {image_url}")
-        cat_id = None
-        # if product_category:
-        #     try:
-        #         cat_id = PydanticObjectId(product_category)
-        #     except:
-        #         raise HTTPException(status_code=400, detail="Invalid category_id format")
-        # logger.info(f"Category ID: {cat_id}")
+        
         product = models.Product(
             product_title=product_title,
             product_price=product_price,
@@ -89,18 +88,22 @@ async def create_product(
             is_featured=is_featured,
             is_new_arrival=is_new_arrival,
             product_main_image=image_url,
-            product_images=product_images_urls
+            product_images=product_images_urls if product_images else []
         )
-        await product.insert()
+        
+        result = db.products.insert_one(product.model_dump(by_alias=True, exclude_none=True))
+        product.id = str(result.inserted_id)
+        
         return product
         
-        
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Product creation failed: {str(e)}")
 
 @router.put("/{product_id}")
 async def update_product(
-    product_id: PydanticObjectId,
+    product_id: str,
     product_title: Optional[str] = Form(None),
     product_price: Optional[float] = Form(None),
     product_description: Optional[str] = Form(None),
@@ -111,9 +114,16 @@ async def update_product(
     product_images: Optional[List[UploadFile]] = File(None),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    product = await models.Product.get(product_id)
-    if product is None:
+    try:
+        obj_id = ObjectId(product_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid product_id format")
+
+    doc = db.products.find_one({"_id": obj_id})
+    if doc is None:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    product = models.Product(**doc)
 
     if product_title is not None: product.product_title = product_title
     if product_price is not None: product.product_price = product_price
@@ -136,5 +146,10 @@ async def update_product(
             product_images_urls.append(img_url)
         product.product_images = product_images_urls
 
-    await product.save()
+    # Save to db
+    update_data = product.model_dump(by_alias=True, exclude_none=True)
+    update_data.pop("_id", None)
+    db.products.update_one({"_id": obj_id}, {"$set": update_data})
+    
     return product
+

@@ -8,8 +8,8 @@ DATABASE_NAME = "Deluzex"
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 
-
-async def init_db():
+def init_db():
     # Validate that the MongoDB server is reachable
     client.admin.command("ping")
     return db
+

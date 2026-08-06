@@ -1,12 +1,14 @@
-from beanie import Document
+from pydantic import BaseModel, Field
 from typing import Optional
+from app.models.common import PyObjectId
 
-class Project(Document):
+class Project(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     title: str
     subtitle: Optional[str] = None
     installations_count: Optional[str] = None
     image_url: Optional[str] = None
     is_featured: bool = False
 
-    class Settings:
-        name = "projects"
+    class Config:
+        populate_by_name = True

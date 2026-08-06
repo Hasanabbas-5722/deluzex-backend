@@ -2,13 +2,14 @@ from datetime import timedelta
 from fastapi import APIRouter, HTTPException, status
 from app import models, schemas
 from app.core.security import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.core.database import db
 
 router = APIRouter()
 
 @router.post("/register", response_model=schemas.StandardResponse)
-async def register_user(user_in: schemas.UserRegister):
+def register_user(user_in: schemas.UserRegister):
     # Check if email exists
-    existing_user = await models.User.find_one({"email": user_in.email})
+    existing_user = db.users.find_one({"email": user_in.email})
     if existing_user:
         raise HTTPException(
             status_code=400,
@@ -26,7 +27,9 @@ async def register_user(user_in: schemas.UserRegister):
         accept_terms=user_in.accept_terms,
         is_admin=False # Default to false for public registration
     )
-    await new_user.insert()
+    
+    result = db.users.insert_one(new_user.model_dump(by_alias=True, exclude_none=True))
+    new_user.id = str(result.inserted_id)
 
     # Log action
     audit_log = models.AuditLog(
@@ -34,7 +37,7 @@ async def register_user(user_in: schemas.UserRegister):
         action="USER_REGISTER",
         details="User registered successfully"
     )
-    await audit_log.insert()
+    db.audit_logs.insert_one(audit_log.model_dump(by_alias=True, exclude_none=True))
 
     # Generate token automatically (optional, but good for UX)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -58,10 +61,15 @@ async def register_user(user_in: schemas.UserRegister):
     )
 
 @router.post("/login", response_model=schemas.StandardResponse)
-async def login_user(user_in: schemas.UserLogin):
-    user = await models.User.find_one({"email": user_in.email})
+def login_user(user_in: schemas.UserLogin):
+    user_data = db.users.find_one({"email": user_in.email})
     
-    if not user or not verify_password(user_in.password, user.hashed_password):
+    if not user_data:
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
+    user = models.User(**user_data)
+        
+    if not verify_password(user_in.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -72,7 +80,7 @@ async def login_user(user_in: schemas.UserLogin):
         action="USER_LOGIN",
         details="User logged in successfully"
     )
-    await audit_log.insert()
+    db.audit_logs.insert_one(audit_log.model_dump(by_alias=True, exclude_none=True))
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -93,3 +101,4 @@ async def login_user(user_in: schemas.UserLogin):
             created_at=user.created_at
         )
     )
+

@@ -1,9 +1,12 @@
-from beanie import Document, PydanticObjectId
+from pydantic import BaseModel, Field
+from typing import Optional
+from app.models.common import PyObjectId
 
-class CartItem(Document):
+class CartItem(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     session_id: str
-    product_id: PydanticObjectId
+    product_id: PyObjectId
     quantity: int = 1
 
-    class Settings:
-        name = "cart_items"
+    class Config:
+        populate_by_name = True
