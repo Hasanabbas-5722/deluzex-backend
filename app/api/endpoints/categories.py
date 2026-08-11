@@ -4,15 +4,14 @@ from beanie import PydanticObjectId
 from app import models
 from app.api.deps import get_current_active_user
 from app.services.imagekit import upload_image_to_imagekit
+from app.core.database import db
 
 router = APIRouter()
 
-@router.get("", response_model=List[models.Category])
-async def read_categories(skip: int = 0, limit: int = 100):
-    """
-    Get all categories from MongoDB database.
-    """
-    return await models.Category.find_all().skip(skip).limit(limit).to_list()
+@router.get("")
+def read_categories(skip: int = 0, limit: int = 100):
+    docs = list(db.categories.find().skip(skip).limit(limit))
+    return [models.Category(**doc) for doc in docs]
 
 
 @router.get("/{identifier}", response_model=models.Category)
@@ -44,29 +43,24 @@ async def read_category(identifier: str):
 async def create_category(
     name: str = Form(...),
     category_id: Optional[str] = Form(None),
-    description: Optional[str] = Form(None),
-    image: Optional[UploadFile] = File(None),
-    image_url: Optional[str] = Form(None),
+    image_file: Optional[UploadFile] = File(None),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """
-    Create a new category in MongoDB database.
-    """
-    final_image_url = image_url
-
-    if image:
+    final_image_url = None
+    if image_file:
         try:
-            final_image_url = await upload_image_to_imagekit(image, folder="/categories")
+            final_image_url = await upload_image_to_imagekit(image_file, folder="/categories")
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
 
     category = models.Category(
         name=name,
         category_id=category_id,
-        description=description,
         image_url=final_image_url
     )
-    await category.insert()
+    
+    result = db.categories.insert_one(category.model_dump(by_alias=True, exclude_none=True))
+    category.id = str(result.inserted_id)
     return category
 
 

@@ -1,12 +1,14 @@
-from beanie import Document
+from pydantic import BaseModel, Field
 from typing import Optional
+from app.models.common import PyObjectId
 
-class Testimonial(Document):
+class Testimonial(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     author_name: str
     author_title: Optional[str] = None
     text: str
     rating: float = 5.0
     avatar_url: Optional[str] = None
 
-    class Settings:
-        name = "testimonials"
+    class Config:
+        populate_by_name = True

@@ -1,9 +1,10 @@
-from beanie import Document
-from pydantic import EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional
+from app.models.common import PyObjectId
 
-class User(Document):
+class User(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     first_name: str
     last_name: str
     email: EmailStr
@@ -15,5 +16,5 @@ class User(Document):
     is_admin: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Settings:
-        name = "users"
+    class Config:
+        populate_by_name = True

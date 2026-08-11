@@ -1,7 +1,9 @@
-from beanie import Document, PydanticObjectId
+from pydantic import BaseModel, Field
 from typing import Optional
+from app.models.common import PyObjectId
 
-class Product(Document):
+class Product(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     product_title: str
     product_price: int
     product_description: Optional[str] = None
@@ -16,5 +18,5 @@ class Product(Document):
     product_main_image: Optional[str] = None
     product_images: list[str] = []
 
-    class Settings:
-        name = "products"
+    class Config:
+        populate_by_name = True
