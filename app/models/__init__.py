@@ -7,5 +7,6 @@ from app.models.cart import CartItem
 from app.models.user import User
 from app.models.audit import AuditLog
 from app.models.contact import ContactMessage
+from app.models.order import Order
 
 # For Alembic or Base.metadata.create_all() to discover the models
