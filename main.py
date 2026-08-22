@@ -5,6 +5,13 @@ from app.api import api_router
 from app.core.config import settings
 from app.core.database import init_db
 import uvicorn
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="INFO:     %(name)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

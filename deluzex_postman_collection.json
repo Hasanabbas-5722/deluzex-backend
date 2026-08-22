@@ -218,6 +218,135 @@
           }
         }
       ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Get My Orders",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/my-orders",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "my-orders"]
+            }
+          }
+        },
+        {
+          "name": "Get Orders by Email",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders?email=hasan@example.com",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "hasan@example.com"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Order By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/:order_id",
+              "host": ["{{base_url}}"],
+              "path": ["orders", ":order_id"],
+              "variable": [
+                {
+                  "key": "order_id",
+                  "value": "66bc0f823a967a5c12345678"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"hasan@example.com\",\n  \"phone\": \"+919876543210\",\n  \"shipping_address\": {\n    \"first_name\": \"Hasan\",\n    \"last_name\": \"Chaudhary\",\n    \"street\": \"123 Modern Street\",\n    \"city\": \"Mumbai\",\n    \"state\": \"Maharashtra\",\n    \"pin_code\": \"400001\"\n  },\n  \"items\": [\n    {\n      \"product_id\": \"66bc0f823a967a5c12345678\",\n      \"title\": \"Pendant Lights\",\n      \"price\": 1499.0,\n      \"quantity\": 2,\n      \"image\": \"https://ik.imagekit.io/2s78gfu2x/categories/pendentlight.jpeg\"\n    }\n  ],\n  \"subtotal\": 2998.0,\n  \"gst\": 539.64,\n  \"delivery\": 0.0,\n  \"total\": 3537.64,\n  \"payment_method\": \"cod\",\n  \"notes\": \"Deliver on weekend\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": ["{{base_url}}"],
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\",\n  \"tracking_number\": \"TRK-12345678\",\n  \"notes\": \"Shipped via BlueDart\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orders/:order_id/status",
+              "host": ["{{base_url}}"],
+              "path": ["orders", ":order_id", "status"],
+              "variable": [
+                {
+                  "key": "order_id",
+                  "value": "66bc0f823a967a5c12345678"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/:order_id/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["orders", ":order_id", "cancel"],
+              "variable": [
+                {
+                  "key": "order_id",
+                  "value": "66bc0f823a967a5c12345678"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

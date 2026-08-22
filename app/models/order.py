@@ -5,7 +5,17 @@ from pydantic import BaseModel, Field
 
 from app.models.common import PyObjectId
 
-OrderStatus = Literal["pending", "paid", "failed", "cod"]
+OrderStatus = Literal[
+    "pending",
+    "paid",
+    "failed",
+    "cod",
+    "processing",
+    "shipped",
+    "out_for_delivery",
+    "delivered",
+    "cancelled",
+]
 PaymentMethod = Literal["cod", "upi", "card", "netbanking", "wallet"]
 
 
@@ -28,6 +38,7 @@ class ShippingAddress(BaseModel):
 
 class Order(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    user_id: Optional[str] = None
     email: str
     phone: str
     shipping_address: ShippingAddress
@@ -41,7 +52,11 @@ class Order(BaseModel):
     razorpay_order_id: Optional[str] = None
     razorpay_payment_id: Optional[str] = None
     status: OrderStatus = "pending"
+    tracking_number: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True
+
