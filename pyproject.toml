@@ -17,4 +17,6 @@ dependencies = [
     "python-multipart>=0.0.6",
     "imagekitio>=5.1.0",
     "python-dotenv>=1.0.0",
+    "razorpay>=1.4.0",
+
 ]
