@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
-from beanie import PydanticObjectId
 from app import models
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_active_admin
 from app.services.imagekit import upload_image_to_imagekit
 from app.core.database import db
 
@@ -44,7 +43,7 @@ async def create_category(
     name: str = Form(...),
     category_id: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
     final_image_url = None
     if image_file:
@@ -72,7 +71,7 @@ async def update_category(
     description: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     image_url: Optional[str] = Form(None),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
     """
     Update an existing category by _id or category_id.
@@ -107,7 +106,7 @@ async def update_category(
 @router.delete("/{identifier}")
 async def delete_category(
     identifier: str,
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
     """
     Delete a category from MongoDB database by _id or category_id.

@@ -20,6 +20,7 @@ class UserData(BaseModel):
     last_name: str
     email: EmailStr
     is_verified: bool
+    is_admin: bool = False
     created_at: datetime
 
     class Config:

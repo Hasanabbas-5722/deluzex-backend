@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
 from bson import ObjectId
 from app import models
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_active_admin
 from app.services.imagekit import upload_image_to_imagekit
 from app.core.database import db
 import json
@@ -58,7 +58,7 @@ async def create_product(
     is_new_arrival: bool = Form(False),
     product_main_image: Optional[UploadFile] = File(None),
     product_images: Optional[List[UploadFile]] = File(None),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
     try:
         image_url = None
@@ -112,7 +112,7 @@ async def update_product(
     is_new_arrival: Optional[bool] = Form(None),
     product_main_image: Optional[UploadFile] = File(None),
     product_images: Optional[List[UploadFile]] = File(None),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
     try:
         obj_id = ObjectId(product_id)

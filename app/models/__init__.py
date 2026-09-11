@@ -8,5 +8,6 @@ from app.models.user import User
 from app.models.audit import AuditLog
 from app.models.contact import ContactMessage
 from app.models.order import Order
+from app.models.hero_product import HeroProduct
 
 # For Alembic or Base.metadata.create_all() to discover the models
