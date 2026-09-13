@@ -10,6 +10,8 @@ class User(BaseModel):
     email: EmailStr
     hashed_password: str
     phone: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
     accept_terms: bool
     is_active: bool = True
     is_verified: bool = False

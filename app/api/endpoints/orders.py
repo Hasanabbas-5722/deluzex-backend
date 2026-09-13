@@ -3,11 +3,12 @@ import re
 from datetime import datetime
 from typing import List, Optional
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 
 from app import models
 from app.api.deps import get_current_active_user
 from app.core.database import db
+from app.core.audit import record_audit_event
 from app.schemas.order import (
     OrderCancelResponse,
     OrderCreateRequest,
@@ -39,10 +40,17 @@ def get_my_orders(
     """
     logger.info(f"[GET /my-orders] Fetching orders for user: email={current_user.email}, id={current_user.id}")
     conditions = []
-    if current_user.email:
-        conditions.append({"email": {"$regex": f"^{re.escape(current_user.email)}$", "$options": "i"}})
     if current_user.id:
         conditions.append({"user_id": str(current_user.id)})
+    if current_user.email:
+        clean_email = current_user.email.strip().lower()
+        conditions.append({"email": {"$regex": f"^{re.escape(clean_email)}$", "$options": "i"}})
+        prefix = clean_email.split("@")[0]
+        conditions.append({"email": {"$regex": f"^{re.escape(prefix)}", "$options": "i"}})
+    if getattr(current_user, "phone", None):
+        clean_phone = re.sub(r"\D", "", str(current_user.phone))
+        if len(clean_phone) >= 10:
+            conditions.append({"phone": {"$regex": f"{re.escape(clean_phone[-10:])}$"}})
 
     query = {"$or": conditions} if conditions else {}
     docs = list(
@@ -51,6 +59,10 @@ def get_my_orders(
         .skip(skip)
         .limit(limit)
     )
+    # If user is admin and found 0 personal orders, return store orders
+    if not docs and getattr(current_user, "is_admin", False):
+        docs = list(db.orders.find().sort("created_at", -1).skip(skip).limit(limit))
+
     logger.info(f"[GET /my-orders] Found {len(docs)} orders for user {current_user.email}")
     return [models.Order(**doc) for doc in docs]
 
@@ -70,9 +82,18 @@ def list_orders(
     logger.info(f"[GET /orders] Listing orders with params: email={email}, phone={phone}, status={status}, skip={skip}, limit={limit}")
     query = {}
     if email:
-        query["email"] = {"$regex": f"^{re.escape(email.strip())}$", "$options": "i"}
+        clean_email = email.strip()
+        prefix = clean_email.split("@")[0]
+        query["$or"] = [
+            {"email": {"$regex": f"^{re.escape(clean_email)}$", "$options": "i"}},
+            {"email": {"$regex": f"^{re.escape(prefix)}", "$options": "i"}},
+        ]
     if phone:
-        query["phone"] = phone.strip()
+        clean_phone = re.sub(r"\D", "", phone.strip())
+        if len(clean_phone) >= 10:
+            query["phone"] = {"$regex": f"{re.escape(clean_phone[-10:])}$"}
+        else:
+            query["phone"] = phone.strip()
     if status:
         query["status"] = {"$regex": f"^{re.escape(status.strip())}$", "$options": "i"}
 
@@ -147,7 +168,7 @@ def create_order(payload: OrderCreateRequest):
 
 
 @router.patch("/{order_id}/status", response_model=models.Order)
-def update_order_status(order_id: str, payload: OrderStatusUpdateRequest):
+def update_order_status(order_id: str, payload: OrderStatusUpdateRequest, request: Request = None):
     """
     Update the status, tracking number, or notes of an existing order.
     """
@@ -160,6 +181,9 @@ def update_order_status(order_id: str, payload: OrderStatusUpdateRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid order ID format",
         )
+
+    prev_doc = db.orders.find_one({"_id": obj_id})
+    old_status = prev_doc.get("status") if prev_doc else None
 
     update_fields = {
         "status": payload.status,
@@ -184,6 +208,20 @@ def update_order_status(order_id: str, payload: OrderStatusUpdateRequest):
 
     doc = db.orders.find_one({"_id": obj_id})
     logger.info(f"[PATCH /orders/{order_id}/status] Status updated successfully")
+
+    record_audit_event(
+        action="ORDER_STATUS_UPDATE",
+        action_category="orders",
+        actor_email=doc.get("email") or "admin@deluzex.com",
+        actor_role="Admin",
+        target_type="order",
+        target_id=order_id,
+        target_name=f"Order #{order_id[:8]}",
+        description=f"Changed order status from '{old_status}' to '{payload.status}'",
+        changes={"before": {"status": old_status}, "after": {"status": payload.status, "tracking_number": payload.tracking_number}},
+        request=request
+    )
+
     return models.Order(**doc)
 
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from app.models.common import PyObjectId
 
@@ -9,5 +9,4 @@ class Category(BaseModel):
     description: Optional[str] = None
     image_url: Optional[str] = None
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)

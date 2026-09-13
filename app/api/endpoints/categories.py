@@ -1,66 +1,72 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import List, Optional
+from bson import ObjectId
 from app import models
-from app.api.deps import get_current_active_user, get_current_active_admin
+from app.api.deps import get_current_active_admin
 from app.services.imagekit import upload_image_to_imagekit
 from app.core.database import db
 
 router = APIRouter()
 
-@router.get("")
+@router.get("", response_model=List[models.Category])
 def read_categories(skip: int = 0, limit: int = 100):
+    """
+    Get all categories from MongoDB.
+    """
     docs = list(db.categories.find().skip(skip).limit(limit))
     return [models.Category(**doc) for doc in docs]
 
 
 @router.get("/{identifier}", response_model=models.Category)
-async def read_category(identifier: str):
+def read_category(identifier: str):
     """
-    Get a single category from MongoDB database by _id (ObjectId) or category_id.
+    Get a single category from MongoDB database by _id (ObjectId) or category_id or name.
     """
-    category = None
-    
-    # 1. Check if identifier is a valid MongoDB ObjectId
-    if PydanticObjectId.is_valid(identifier):
-        category = await models.Category.get(PydanticObjectId(identifier))
+    doc = None
+    if ObjectId.is_valid(identifier):
+        doc = db.categories.find_one({"_id": ObjectId(identifier)})
+    if not doc:
+        doc = db.categories.find_one({"category_id": identifier})
+    if not doc:
+        doc = db.categories.find_one({"name": identifier})
 
-    # 2. If not found by ObjectId, search by custom category_id field
-    if not category:
-        category = await models.Category.find_one(models.Category.category_id == identifier)
-
-    # 3. If still not found, search by name
-    if not category:
-        category = await models.Category.find_one(models.Category.name == identifier)
-
-    if not category:
+    if not doc:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    return category
+    return models.Category(**doc)
 
 
 @router.post("", response_model=models.Category)
 async def create_category(
     name: str = Form(...),
     category_id: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
+    image_url: Optional[str] = Form(None),
     current_user: models.User = Depends(get_current_active_admin)
 ):
-    final_image_url = None
+    """
+    Create a new category in MongoDB.
+    """
+    final_image_url = image_url
     if image_file:
         try:
             final_image_url = await upload_image_to_imagekit(image_file, folder="/categories")
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
 
-    category = models.Category(
-        name=name,
-        category_id=category_id,
-        image_url=final_image_url
-    )
+    cat_id = category_id or name.strip().lower().replace(" ", "-")
+
+    category_dict = {
+        "name": name.strip(),
+        "category_id": cat_id,
+        "description": description.strip() if description else None,
+        "image_url": final_image_url
+    }
     
-    result = db.categories.insert_one(category.model_dump(by_alias=True, exclude_none=True))
-    category.id = str(result.inserted_id)
-    return category
+    result = db.categories.insert_one(category_dict)
+    category_dict["_id"] = result.inserted_id
+    return models.Category(**category_dict)
 
 
 @router.put("/{identifier}", response_model=models.Category)
@@ -74,52 +80,64 @@ async def update_category(
     current_user: models.User = Depends(get_current_active_admin)
 ):
     """
-    Update an existing category by _id or category_id.
+    Update an existing category in MongoDB by _id (ObjectId) or category_id.
     """
-    category = None
-    if PydanticObjectId.is_valid(identifier):
-        category = await models.Category.get(PydanticObjectId(identifier))
-    if not category:
-        category = await models.Category.find_one(models.Category.category_id == identifier)
+    query = None
+    if ObjectId.is_valid(identifier):
+        query = {"_id": ObjectId(identifier)}
+    else:
+        query = {"category_id": identifier}
 
-    if not category:
+    doc = db.categories.find_one(query)
+    if not doc:
+        doc = db.categories.find_one({"name": identifier})
+        if doc:
+            query = {"_id": doc["_id"]}
+
+    if not doc:
         raise HTTPException(status_code=404, detail="Category not found")
 
+    updates = {}
     if name is not None:
-        category.name = name
+        updates["name"] = name.strip()
     if category_id is not None:
-        category.category_id = category_id
+        updates["category_id"] = category_id.strip()
     if description is not None:
-        category.description = description
+        updates["description"] = description.strip()
     if image_url is not None:
-        category.image_url = image_url
+        updates["image_url"] = image_url
     if image:
         try:
-            category.image_url = await upload_image_to_imagekit(image, folder="/categories")
+            updates["image_url"] = await upload_image_to_imagekit(image, folder="/categories")
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
 
-    await category.save()
-    return category
+    if updates:
+        db.categories.update_one({"_id": doc["_id"]}, {"$set": updates})
+        doc = db.categories.find_one({"_id": doc["_id"]})
+
+    return models.Category(**doc)
 
 
 @router.delete("/{identifier}")
-async def delete_category(
+def delete_category(
     identifier: str,
     current_user: models.User = Depends(get_current_active_admin)
 ):
     """
-    Delete a category from MongoDB database by _id or category_id.
+    Delete a category from MongoDB database by _id (ObjectId) or category_id.
     """
-    category = None
-    if PydanticObjectId.is_valid(identifier):
-        category = await models.Category.get(PydanticObjectId(identifier))
-    if not category:
-        category = await models.Category.find_one(models.Category.category_id == identifier)
+    query = None
+    if ObjectId.is_valid(identifier):
+        query = {"_id": ObjectId(identifier)}
+    else:
+        query = {"category_id": identifier}
 
-    if not category:
+    result = db.categories.delete_one(query)
+    if result.deleted_count == 0:
+        result = db.categories.delete_one({"name": identifier})
+
+    if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Category not found")
 
-    await category.delete()
     return {"message": "Category deleted successfully"}
-

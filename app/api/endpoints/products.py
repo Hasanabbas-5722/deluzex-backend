@@ -1,11 +1,13 @@
 from dotenv.main import logger
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Request
+from pydantic import BaseModel
 from typing import List, Optional
 from bson import ObjectId
 from app import models
 from app.api.deps import get_current_active_user, get_current_active_admin
 from app.services.imagekit import upload_image_to_imagekit
 from app.core.database import db
+from app.core.audit import record_audit_event
 import json
 
 router = APIRouter()
@@ -23,10 +25,8 @@ def read_products(
         query["is_featured"] = is_featured
 
     if is_new_arrival is not None:
-        if is_new_arrival:
-            docs = list(db.products.find(query).sort("created_at", -1).limit(3))
-            return [models.Product(**doc) for doc in docs]
-            
+        query["is_new_arrival"] = is_new_arrival
+
     docs = list(db.products.find(query).skip(skip).limit(limit))
     return [models.Product(**doc) for doc in docs]
 
@@ -58,6 +58,7 @@ async def create_product(
     is_new_arrival: bool = Form(False),
     product_main_image: Optional[UploadFile] = File(None),
     product_images: Optional[List[UploadFile]] = File(None),
+    request: Request = None,
     current_user: models.User = Depends(get_current_active_admin)
 ):
     try:
@@ -93,6 +94,22 @@ async def create_product(
         
         result = db.products.insert_one(product.model_dump(by_alias=True, exclude_none=True))
         product.id = str(result.inserted_id)
+
+        record_audit_event(
+            action="PRODUCT_CREATE",
+            action_category="catalog",
+            actor_id=current_user.id,
+            actor_email=current_user.email,
+            actor_name=f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+            actor_role="Admin",
+            target_type="product",
+            target_id=product.id,
+            target_name=product.product_title,
+            description=f"Created product '{product.product_title}' (₹{product.product_price})",
+            details=f"Category: {product.product_category or 'General'}, Stock: {product.stock_count}",
+            changes={"after": {"title": product.product_title, "price": product.product_price, "stock": product.stock_count}},
+            request=request
+        )
         
         return product
         
@@ -112,6 +129,7 @@ async def update_product(
     is_new_arrival: Optional[bool] = Form(None),
     product_main_image: Optional[UploadFile] = File(None),
     product_images: Optional[List[UploadFile]] = File(None),
+    request: Request = None,
     current_user: models.User = Depends(get_current_active_admin)
 ):
     try:
@@ -122,6 +140,14 @@ async def update_product(
     doc = db.products.find_one({"_id": obj_id})
     if doc is None:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    old_state = {
+        "title": doc.get("product_title"),
+        "price": doc.get("product_price"),
+        "stock": doc.get("stock_count"),
+        "is_featured": doc.get("is_featured"),
+        "is_new_arrival": doc.get("is_new_arrival")
+    }
 
     product = models.Product(**doc)
 
@@ -150,6 +176,113 @@ async def update_product(
     update_data = product.model_dump(by_alias=True, exclude_none=True)
     update_data.pop("_id", None)
     db.products.update_one({"_id": obj_id}, {"$set": update_data})
+
+    new_state = {
+        "title": product.product_title,
+        "price": product.product_price,
+        "stock": product.stock_count,
+        "is_featured": product.is_featured,
+        "is_new_arrival": product.is_new_arrival
+    }
+
+    record_audit_event(
+        action="PRODUCT_UPDATE",
+        action_category="catalog",
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_name=f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+        actor_role="Admin",
+        target_type="product",
+        target_id=str(obj_id),
+        target_name=product.product_title,
+        description=f"Updated product details for '{product.product_title}'",
+        changes={"before": old_state, "after": new_state},
+        request=request
+    )
     
     return product
+
+class NewArrivalToggle(BaseModel):
+    is_new_arrival: Optional[bool] = None
+
+@router.patch("/{product_id}/new-arrival")
+def toggle_new_arrival(
+    product_id: str,
+    payload: Optional[NewArrivalToggle] = None,
+    is_new_arrival: Optional[bool] = None,
+    request: Request = None,
+    current_user: models.User = Depends(get_current_active_admin)
+):
+    try:
+        obj_id = ObjectId(product_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid product_id format")
+
+    doc = db.products.find_one({"_id": obj_id})
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if payload is not None and payload.is_new_arrival is not None:
+        target_val = payload.is_new_arrival
+    elif is_new_arrival is not None:
+        target_val = is_new_arrival
+    else:
+        target_val = not doc.get("is_new_arrival", False)
+
+    db.products.update_one({"_id": obj_id}, {"$set": {"is_new_arrival": target_val}})
+    doc["is_new_arrival"] = target_val
+
+    record_audit_event(
+        action="PRODUCT_UPDATE",
+        action_category="catalog",
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_name=f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+        actor_role="Admin",
+        target_type="product",
+        target_id=str(obj_id),
+        target_name=doc.get("product_title"),
+        description=f"Toggled New Arrival status to {target_val} for '{doc.get('product_title')}'",
+        changes={"before": {"is_new_arrival": not target_val}, "after": {"is_new_arrival": target_val}},
+        request=request
+    )
+
+    return models.Product(**doc)
+
+@router.delete("/{product_id}")
+def delete_product(
+    product_id: str,
+    request: Request = None,
+    current_user: models.User = Depends(get_current_active_admin)
+):
+    try:
+        obj_id = ObjectId(product_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid product_id format")
+
+    doc = db.products.find_one({"_id": obj_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    result = db.products.delete_one({"_id": obj_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    record_audit_event(
+        action="PRODUCT_DELETE",
+        action_category="catalog",
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_name=f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+        actor_role="Admin",
+        target_type="product",
+        target_id=str(obj_id),
+        target_name=doc.get("product_title"),
+        description=f"Permanently deleted product '{doc.get('product_title')}'",
+        changes={"before": {"title": doc.get("product_title"), "price": doc.get("product_price")}},
+        request=request
+    )
+
+    return {"success": True, "message": "Product deleted successfully"}
+
 

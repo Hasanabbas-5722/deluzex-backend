@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 from app.models.common import PyObjectId
 
 class Testimonial(BaseModel):
@@ -9,6 +10,7 @@ class Testimonial(BaseModel):
     text: str
     rating: float = 5.0
     avatar_url: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True

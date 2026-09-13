@@ -19,12 +19,27 @@ class UserData(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
     is_verified: bool
     is_admin: bool = False
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+
+class UserPasswordUpdate(BaseModel):
+    current_password: str
+    new_password: str
 
 class StandardResponse(BaseModel):
     success: bool
