@@ -16,7 +16,7 @@ OrderStatus = Literal[
     "delivered",
     "cancelled",
 ]
-PaymentMethod = Literal["cod", "upi", "card", "netbanking", "wallet"]
+PaymentMethod = str
 
 
 class OrderItem(BaseModel):
@@ -54,6 +54,13 @@ class Order(BaseModel):
     status: OrderStatus = "pending"
     tracking_number: Optional[str] = None
     notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    retry_count: int = 0
+    payment_attempts: List[dict] = Field(default_factory=list)
+    error_code: Optional[str] = None
+    error_description: Optional[str] = None
+    upi_vpa: Optional[str] = None
+    card_last4: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
 
