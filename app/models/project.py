@@ -15,6 +15,10 @@ class Project(BaseModel):
     gallery_images: List[str] = []
     is_featured: bool = False
     sequence: int = 1
+    year: Optional[str] = None
+    scope: Optional[str] = None
+    area: Optional[str] = None
+    client: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:

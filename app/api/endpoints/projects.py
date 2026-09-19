@@ -122,6 +122,11 @@ async def create_project(
     installations_count: Optional[str] = Form(None),
     image_url: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
+    gallery_images: Optional[str] = Form(None),
+    year: Optional[str] = Form(None),
+    scope: Optional[str] = Form(None),
+    area: Optional[str] = Form(None),
+    client: Optional[str] = Form(None),
     is_featured: bool = Form(False),
     sequence: Optional[int] = Form(None),
     current_user: models.User = Depends(get_current_active_admin),
@@ -140,6 +145,18 @@ async def create_project(
         highest = db.projects.find_one(sort=[("sequence", -1)])
         sequence = (highest.get("sequence", 0) + 1) if highest else 1
 
+    parsed_gallery: List[str] = []
+    if gallery_images:
+        try:
+            import json
+            val = json.loads(gallery_images)
+            if isinstance(val, list):
+                parsed_gallery = [str(v).strip() for v in val if v]
+        except Exception:
+            parsed_gallery = [img.strip() for img in gallery_images.split(",") if img.strip()]
+    if final_image and final_image not in parsed_gallery:
+        parsed_gallery.insert(0, final_image)
+
     project = models.Project(
         title=title.strip(),
         location=location.strip() if location else None,
@@ -148,7 +165,11 @@ async def create_project(
         description=description.strip() if description else None,
         installations_count=installations_count.strip() if installations_count else None,
         image_url=final_image.strip(),
-        gallery_images=[final_image.strip()],
+        gallery_images=parsed_gallery,
+        year=year.strip() if year else None,
+        scope=scope.strip() if scope else None,
+        area=area.strip() if area else None,
+        client=client.strip() if client else None,
         is_featured=is_featured,
         sequence=sequence,
         created_at=datetime.utcnow(),
@@ -169,6 +190,11 @@ async def update_project(
     installations_count: Optional[str] = Form(None),
     image_url: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
+    gallery_images: Optional[str] = Form(None),
+    year: Optional[str] = Form(None),
+    scope: Optional[str] = Form(None),
+    area: Optional[str] = Form(None),
+    client: Optional[str] = Form(None),
     is_featured: Optional[bool] = Form(None),
     sequence: Optional[int] = Form(None),
     current_user: models.User = Depends(get_current_active_admin),
@@ -196,6 +222,14 @@ async def update_project(
         project.description = description.strip() if description.strip() else None
     if installations_count is not None:
         project.installations_count = installations_count.strip() if installations_count.strip() else None
+    if year is not None:
+        project.year = year.strip() if year.strip() else None
+    if scope is not None:
+        project.scope = scope.strip() if scope.strip() else None
+    if area is not None:
+        project.area = area.strip() if area.strip() else None
+    if client is not None:
+        project.client = client.strip() if client.strip() else None
     if is_featured is not None:
         project.is_featured = is_featured
     if sequence is not None:
@@ -211,6 +245,15 @@ async def update_project(
             raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
     elif image_url is not None and image_url.strip():
         project.image_url = image_url.strip()
+
+    if gallery_images is not None:
+        try:
+            import json
+            val = json.loads(gallery_images)
+            if isinstance(val, list):
+                project.gallery_images = [str(v).strip() for v in val if v]
+        except Exception:
+            project.gallery_images = [img.strip() for img in gallery_images.split(",") if img.strip()]
 
     update_data = project.model_dump(by_alias=True, exclude_none=True)
     update_data.pop("_id", None)
