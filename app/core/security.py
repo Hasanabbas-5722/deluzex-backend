@@ -6,7 +6,8 @@ import bcrypt
 # In a real app, load this from config/env variables
 SECRET_KEY = "super_secret_key_for_deluzex_keep_it_safe"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# 7 days token expiration for smooth admin and user sessions
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(

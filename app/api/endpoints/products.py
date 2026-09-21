@@ -74,12 +74,16 @@ async def create_product(
     whatsapp_number: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     specifications: Optional[str] = Form(None),
+    technical_spec_pdf: Optional[UploadFile] = File(None),
+    technical_spec_pdf_url: Optional[str] = Form(None),
     request: Request = None,
     current_user: models.User = Depends(get_current_active_admin)
 ):
     try:
         image_url = None
         product_images_urls = []
+        pdf_url = None
+
         if product_main_image:
             try:
                 image_url = await upload_image_to_imagekit(product_main_image)
@@ -93,6 +97,14 @@ async def create_product(
                     product_images_urls.append(img_url)
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Gallery image upload failed: {str(e)}")
+
+        if technical_spec_pdf and technical_spec_pdf.filename:
+            try:
+                pdf_url = await upload_image_to_imagekit(technical_spec_pdf, folder="/specs")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"PDF upload failed: {str(e)}")
+        elif technical_spec_pdf_url and technical_spec_pdf_url.strip():
+            pdf_url = technical_spec_pdf_url.strip()
 
         parsed_specs = []
         if specifications:
@@ -130,7 +142,8 @@ async def create_product(
             replenishment=replenishment,
             whatsapp_number=whatsapp_number,
             phone_number=phone_number,
-            specifications=parsed_specs if isinstance(parsed_specs, list) else []
+            specifications=parsed_specs if isinstance(parsed_specs, list) else [],
+            technical_spec_pdf=pdf_url
         )
         
         result = db.products.insert_one(product.model_dump(by_alias=True, exclude_none=True))
@@ -192,6 +205,9 @@ async def update_product(
     whatsapp_number: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     specifications: Optional[str] = Form(None),
+    technical_spec_pdf: Optional[UploadFile] = File(None),
+    technical_spec_pdf_url: Optional[str] = Form(None),
+    remove_technical_spec_pdf: Optional[bool] = Form(False),
     request: Request = None,
     current_user: models.User = Depends(get_current_active_admin)
 ):
@@ -279,6 +295,19 @@ async def update_product(
                 raise HTTPException(status_code=400, detail=f"Gallery upload failed: {str(e)}")
 
     product.product_images = updated_images
+
+    if remove_technical_spec_pdf:
+        product.technical_spec_pdf = None
+    elif technical_spec_pdf and technical_spec_pdf.filename:
+        try:
+            pdf_url = await upload_image_to_imagekit(technical_spec_pdf, folder="/specs")
+            product.technical_spec_pdf = pdf_url
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"PDF upload failed: {str(e)}")
+    elif technical_spec_pdf_url is not None:
+        trimmed_pdf_url = technical_spec_pdf_url.strip()
+        if trimmed_pdf_url:
+            product.technical_spec_pdf = trimmed_pdf_url
 
     # Save to db
     update_data = product.model_dump(by_alias=True, exclude_none=True)

@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Union, List, Dict, Any
 from app.models.common import PyObjectId
 
 class Product(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     product_title: str
-    product_price: Optional[float | int | str] = 0
+    product_price: Optional[Union[float, int, str]] = 0
+
     product_description: Optional[str] = None
     product_category: Optional[str] = None
     product_material: Optional[str] = None
@@ -35,6 +36,7 @@ class Product(BaseModel):
     whatsapp_number: Optional[str] = None
     phone_number: Optional[str] = None
     specifications: Optional[list[dict]] = []
+    technical_spec_pdf: Optional[str] = None
 
     class Config:
         populate_by_name = True

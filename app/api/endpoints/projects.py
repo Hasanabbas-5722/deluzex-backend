@@ -123,6 +123,7 @@ async def create_project(
     image_url: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     gallery_images: Optional[str] = Form(None),
+    videos: Optional[str] = Form(None),
     year: Optional[str] = Form(None),
     scope: Optional[str] = Form(None),
     area: Optional[str] = Form(None),
@@ -157,6 +158,16 @@ async def create_project(
     if final_image and final_image not in parsed_gallery:
         parsed_gallery.insert(0, final_image)
 
+    parsed_videos: List[str] = []
+    if videos:
+        try:
+            import json
+            v_val = json.loads(videos)
+            if isinstance(v_val, list):
+                parsed_videos = [str(v).strip() for v in v_val if v]
+        except Exception:
+            parsed_videos = [v.strip() for v in videos.split(",") if v.strip()]
+
     project = models.Project(
         title=title.strip(),
         location=location.strip() if location else None,
@@ -166,6 +177,7 @@ async def create_project(
         installations_count=installations_count.strip() if installations_count else None,
         image_url=final_image.strip(),
         gallery_images=parsed_gallery,
+        videos=parsed_videos,
         year=year.strip() if year else None,
         scope=scope.strip() if scope else None,
         area=area.strip() if area else None,
@@ -191,6 +203,7 @@ async def update_project(
     image_url: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None),
     gallery_images: Optional[str] = Form(None),
+    videos: Optional[str] = Form(None),
     year: Optional[str] = Form(None),
     scope: Optional[str] = Form(None),
     area: Optional[str] = Form(None),
@@ -254,6 +267,15 @@ async def update_project(
                 project.gallery_images = [str(v).strip() for v in val if v]
         except Exception:
             project.gallery_images = [img.strip() for img in gallery_images.split(",") if img.strip()]
+
+    if videos is not None:
+        try:
+            import json
+            v_val = json.loads(videos)
+            if isinstance(v_val, list):
+                project.videos = [str(v).strip() for v in v_val if v]
+        except Exception:
+            project.videos = [v.strip() for v in videos.split(",") if v.strip()]
 
     update_data = project.model_dump(by_alias=True, exclude_none=True)
     update_data.pop("_id", None)

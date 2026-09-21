@@ -109,6 +109,13 @@ async def request_logging_middleware(request: Request, call_next):
             content={"detail": "Internal server error", "request_id": request_id}
         )
 
+import os
+from fastapi.staticfiles import StaticFiles
+
+uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")

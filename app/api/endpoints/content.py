@@ -96,12 +96,19 @@ DEFAULT_CONTENT: Dict[str, Dict[str, Any]] = {
     "site_settings": {
         "brand_name": "deluzex",
         "tagline": "Where Lights become Design",
-        "logo_url": "/images/logo.png",
+        "logo_url": "/images/logos/De Luzex_white_logo.svg",
         "phone": "+1 (800) 456-7890",
         "email": "concierge@deluzex.com",
         "address": "450 Luxury Avenue, Suite 1200, Mayfair, London",
         "working_hours": "Mon - Fri: 9:00 AM - 7:00 PM GMT",
+        "available_on": {
+            "amazon": "https://www.amazon.in",
+            "flipkart": "https://www.flipkart.com",
+            "whatsapp": "https://wa.me/918511682031",
+            "instagram": "https://instagram.com"
+        },
         "social_links": {
+            "whatsapp": "https://wa.me/918511682031",
             "instagram": "https://instagram.com",
             "facebook": "https://facebook.com",
             "linkedin": "https://linkedin.com",

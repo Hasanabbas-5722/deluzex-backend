@@ -13,6 +13,7 @@ class Project(BaseModel):
     installations_count: Optional[str] = None
     image_url: Optional[str] = None
     gallery_images: List[str] = []
+    videos: List[str] = []
     is_featured: bool = False
     sequence: int = 1
     year: Optional[str] = None
