@@ -13,3 +13,7 @@ venv.bak/
 
 # Pytest
 .pytest_cache/
+
+# Data exports and generated previews
+subscribers.csv
+preview_launch_announcement.html
