@@ -40,6 +40,7 @@ class CreateOrderResponse(BaseModel):
     key_id: str
     is_resumed: bool = False
     is_already_paid: bool = False
+    is_sandbox: bool = False
 
 
 class VerifyPaymentRequest(BaseModel):
