@@ -18,6 +18,13 @@ def read_products(
     limit: int = 100,
     is_featured: Optional[bool] = None,
     is_new_arrival: Optional[bool] = None,
+    search: Optional[str] = None,
+    q: Optional[str] = None,
+    category: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    in_stock: Optional[bool] = None,
+    sort_by: Optional[str] = None,
 ):
     query = {}
 
@@ -27,8 +34,58 @@ def read_products(
     if is_new_arrival is not None:
         query["is_new_arrival"] = is_new_arrival
 
-    docs = list(db.products.find(query).skip(skip).limit(limit))
+    # Search keyword in title, description, SKU, or category
+    search_term = (search or q or "").strip()
+    if search_term:
+        query["$or"] = [
+            {"product_title": {"$regex": search_term, "$options": "i"}},
+            {"product_description": {"$regex": search_term, "$options": "i"}},
+            {"sku": {"$regex": search_term, "$options": "i"}},
+            {"product_category": {"$regex": search_term, "$options": "i"}},
+        ]
+
+    # Category filter
+    if category and category.strip().lower() != "all":
+        cat_regex = f"^{category.strip()}$"
+        query["product_category"] = {"$regex": cat_regex, "$options": "i"}
+
+    # Price range filters
+    price_filter = {}
+    if min_price is not None:
+        price_filter["$gte"] = float(min_price)
+    if max_price is not None:
+        price_filter["$lte"] = float(max_price)
+    if price_filter:
+        query["product_price"] = price_filter
+
+    # In-stock filter
+    if in_stock is True:
+        stock_condition = {"$or": [{"in_stock": True}, {"stock_status": {"$regex": "^in stock$", "$options": "i"}}]}
+        if "$or" in query:
+            existing_or = query.pop("$or")
+            query["$and"] = [{"$or": existing_or}, stock_condition]
+        else:
+            query["$or"] = stock_condition["$or"]
+
+    cursor = db.products.find(query)
+
+    # Sorting
+    if sort_by:
+        sort_by_lower = sort_by.lower().strip()
+        if sort_by_lower in ("price_asc", "price_low_to_high", "price: low to high"):
+            cursor = cursor.sort("product_price", 1)
+        elif sort_by_lower in ("price_desc", "price_high_to_low", "price: high to low"):
+            cursor = cursor.sort("product_price", -1)
+        elif sort_by_lower in ("newest", "newest arrivals", "newest_arrivals"):
+            cursor = cursor.sort("_id", -1)
+        elif sort_by_lower in ("rating", "rating_desc", "rating: high to low"):
+            cursor = cursor.sort("product_rating", -1)
+        elif sort_by_lower in ("featured",):
+            cursor = cursor.sort("is_featured", -1)
+
+    docs = list(cursor.skip(skip).limit(limit))
     return [models.Product(**doc) for doc in docs]
+
 
     
 @router.get("/{product_id}")
